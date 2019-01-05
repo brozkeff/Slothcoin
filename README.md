@@ -1,11 +1,15 @@
 Slothcoin aka SLOTH
 ===================
+
+- Official Website
+
    http://www.slothcoin.org/
    
 - Wallet
 
    [Download this wallet Slothcoin-Qt.exe.](http://www.slothcoin.org/Slothcoin-Qt.exe)
    [Download this config file change rpcuser and rpcpassword.](http://www.slothcoin.org/slothcoin.conf)
+   
    Put them in the same dir and start using slothcoin. 
 
 - Buy or Sell Slothcoin
