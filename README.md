@@ -15,9 +15,11 @@ Slothcoin aka SLOTH
 
 - Buy or Sell Slothcoin
 
-   https://www.cryptopia.co.nz/Register?referrer=lolsilent
+   [Cryptopia](https://www.cryptopia.co.nz/Register?referrer=lolsilent)
    
-   https://www.183898.com/  
+   [183898](https://www.183898.com/)  
+   
+   [Trade Satoshi](https://tradesatoshi.com/Exchange/?market=SLOTH_LTC)
 
 - Market Data
 
