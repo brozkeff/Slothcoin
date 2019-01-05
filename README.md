@@ -1,6 +1,31 @@
 Slothcoin aka SLOTH
 ===================
-   www.slick.cf/coin/sloth
+   http://www.slothcoin.org/
+   
+- Wallet
+
+   [Download this wallet Slothcoin-Qt.exe.](http://www.slothcoin.org/Slothcoin-Qt.exe)
+   [Download this config file change rpcuser and rpcpassword.](http://www.slothcoin.org/slothcoin.conf)
+   Put them in the same dir and start using slothcoin. 
+
+- Buy or Sell Slothcoin
+
+   https://www.cryptopia.co.nz/Register?referrer=lolsilent
+   
+   https://www.183898.com/  
+
+- Market Data
+
+   https://cryptopia.co.nz/Exchange?market=SLOTH_LTC
+
+- Community Forum
+
+   https://bitcointalk.org/index.php?topic=1168909.0
+
+- Block Explorer
+
+   http://ccexp.tk/CurrencyInfo/index.php?Currency=SLOTH
+
 
 Technical Information version 1.3.1 [build 3]
 
