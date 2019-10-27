@@ -1,38 +1,41 @@
-Slothcoin aka SLOTH
-===================
+Slothcoin aka SLOTH 2019
+========================
 
-- Official Website
+- Provisional website built from the original (2014) layout with updated links to binaries, source, exchange and mining pool:
+ 
+   http://slothcoin.brozkeff.net
+
+- Original Website (now just link to Windows binary)
 
    http://www.slothcoin.org/
+ 
    
-- Wallet
+- Wallet (v1.3.1 build3)
+   [Windows Binary](http://slothcoin.brozkeff.net/download/SlothCoin-Windows.zip)
+   [Linux x64 Binaries](http://slothcoin.brozkeff.net/download/SlothCoin-Linux.zip)
 
-   [Download this wallet Slothcoin-Qt.exe.](http://www.slothcoin.org/Slothcoin-Qt.exe)
+   [Download this config file, PLEASE change rpcuser and rpcpassword.](http://slothcoin.brozkeff.net/download/Slothcoin.conf)
    
-   [Download this config file change rpcuser and rpcpassword.](http://www.slothcoin.org/slothcoin.conf)
-   
-   Put them in the same dir and start using slothcoin. 
+   Put them in the same dir (or in Windows, ~/AppData/Roaming/Slothcoin, in Linux ~/.Slothcoin and start using slothcoin-qt or just as a daemon on a linux server, slothcoind. If you run a Linux server with a public IP, please open the port 5107 and serve as a public node, as of October 2019 it is urgently needed since very few publicly accessible nodes exist. If you add "gen=1" to the config the client will also (inefficiently) CPU-mine, helping to confirm transactions. Since the difficulty is low compared to more popular coins you can easily solo-mine using CPU and feel the excitement Bitcoin miners had cca 2009-2010 :-)
 
 - Buy or Sell Slothcoin
 
-   [Cryptopia](https://www.cryptopia.co.nz/Register?referrer=lolsilent)  
-   
-   [Trade Satoshi](https://tradesatoshi.com/Exchange/?market=SLOTH_LTC)
+   [Unnamed Exchange](https://www.unnamed.exchange/CoinInfo?id=SLOTH)
 
 - Market Data
 
-   https://cryptopia.co.nz/Exchange?market=SLOTH_LTC
+   https://www.unnamed.exchange/CoinInfo?id=SLOTH
 
 - Community Forum
 
    https://bitcointalk.org/index.php?topic=1168909.0
 
-- Block Explorer
+- Mining Pool
 
-   http://ccexp.tk/CurrencyInfo/index.php?Currency=SLOTH
+   https://pool.atomminer.com/
 
 
-Technical Information version 1.3.1 [build 3]
+Technical Information version 1.3.1 build 3
 
 + SHA-3 keccak encryption algorithm
 + Difficulty retargeting using Kimoto Gravity Well
@@ -45,7 +48,7 @@ Technical Information version 1.3.1 [build 3]
 Total amount of coins: 92,233,720,368
 Shortly after the year 2020 POW mining will stop.
 
-[ Orginal Slothcoin Rewards up to block 299999 ]
+Original Slothcoin Rewards up to block 299999
 
 	     0 ..        4      5 *    50000000 =	   250.000.000
 	     5 ..      100     96 *       10000	=	       960.000
@@ -79,3 +82,6 @@ License
 
 Slothcoin is released under the terms of the MIT license. See `COPYING` for more
 information or see http://opensource.org/licenses/MIT.
+
+Brozkeff's note 10/2019:
+Provisional website at slothcoin.brozkeff.net provided as a temporary cure for the lack of the reasonably well informative official website. Contact me at (ian at brozkeff net) if you have any questions. I am not a developer of the Slothcoin client, I just run one of the few public nodes.
