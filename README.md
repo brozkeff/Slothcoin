@@ -9,7 +9,9 @@ Slothcoin aka SLOTH 2019
 
    http://www.slothcoin.org/
  
-   
+ 
+- Since commit 96c01e6 this source is marked as v1.3.1 build4 - modified to new URL, graphics and seed urls. Binaries not built yet, links below are for the original pre-fork version.
+
 - Wallet (v1.3.1 build3)
    [Windows Binary](http://slothcoin.brozkeff.net/download/SlothCoin-Windows.zip)
    [Linux x64 Binaries](http://slothcoin.brozkeff.net/download/SlothCoin-Linux.zip)
