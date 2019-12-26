@@ -14,7 +14,7 @@ Slothcoin aka SLOTH 2019
 - Wallet
    [Windows Binary (older - v1.3.1 build3)](http://slothcoin.brozkeff.net/download/SlothCoin-Windows.zip)
 
-   [Linux x64 Binaries (current - v1.3.1 build4)](http://slothcoin.brozkeff.net/download/SlothCoin-Linux.zip) or in Releases section (signed)
+   [Linux x64 Binaries (current - v1.3.1 build4)](https://github.com/brozkeff/Slothcoin/releases/download/v1.3.1-build4/slothcoin-v1.3.1-build4+ubuntu16.04-amd64.zip) in Releases
 
    For the older build 3, [Download this config file, PLEASE change rpcuser and rpcpassword.](http://slothcoin.brozkeff.net/download/Slothcoin.conf)
    
