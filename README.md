@@ -13,9 +13,10 @@ Slothcoin aka SLOTH 2019
 
 - Wallet
    [Windows Binary (older - v1.3.1 build3)](http://slothcoin.brozkeff.net/download/SlothCoin-Windows.zip)
+
    [Linux x64 Binaries (current - v1.3.1 build4)](http://slothcoin.brozkeff.net/download/SlothCoin-Linux.zip) or in Releases section (signed)
 
-   [Download this config file, PLEASE change rpcuser and rpcpassword.](http://slothcoin.brozkeff.net/download/Slothcoin.conf)
+   For the older build 3, [Download this config file, PLEASE change rpcuser and rpcpassword.](http://slothcoin.brozkeff.net/download/Slothcoin.conf)
    
    Put them in the same dir (or in Windows, ~/AppData/Roaming/Slothcoin, in Linux ~/.Slothcoin and start using slothcoin-qt or just as a daemon on a linux server, slothcoind. If you run a Linux server with a public IP, please open the port 5107 and serve as a public node, as of October 2019 it is urgently needed since very few publicly accessible nodes exist. If you add "gen=1" to the config the client will also (inefficiently) CPU-mine, helping to confirm transactions. Since the difficulty is low compared to more popular coins you can easily solo-mine using CPU and feel the excitement Bitcoin miners had cca 2009-2010 :-)
 
@@ -85,4 +86,6 @@ Slothcoin is released under the terms of the MIT license. See `COPYING` for more
 information or see http://opensource.org/licenses/MIT.
 
 Brozkeff's note 10/2019:
-Provisional website at slothcoin.brozkeff.net provided as a temporary cure for the lack of the reasonably well informative official website. Contact me at (ian at brozkeff net) if you have any questions. I am not a developer of the Slothcoin client, I just run one of the few public nodes.
+Provisional website at slothcoin.brozkeff.net provided as a temporary cure for the lack of the reasonably well informative official website. Contact me at (ian at brozkeff net) if you have any questions. I am not a professional developer of the Slothcoin client, I just run one of the few public nodes. 
+
+Edit 12/2019: In December 2019 I tried to modify the source to enter new seed nodes and change the graphics and URL, and managed to compile working Linux binary (Ubuntu 16.04 64bit only). 
