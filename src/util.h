@@ -220,6 +220,7 @@ boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 #endif
 boost::filesystem::path GetTempPath();
 void ShrinkDebugFile();
+void GetStrongRandBytes(unsigned char* buffer, int size);
 int GetRandInt(int nMax);
 uint64 GetRand(uint64 nMax);
 uint256 GetRandHash();

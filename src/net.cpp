@@ -543,7 +543,7 @@ void CNode::PushVersion()
     int64 nTime = (fInbound ? GetAdjustedTime() : GetTime());
     CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr) ? addr : CAddress(CService("0.0.0.0",0)));
     CAddress addrMe = GetLocalAddress(&addr);
-    RAND_bytes((unsigned char*)&nLocalHostNonce, sizeof(nLocalHostNonce));
+    GetStrongRandBytes((unsigned char*)&nLocalHostNonce, sizeof(nLocalHostNonce));
     printf("send version message: version %d, blocks=%d, us=%s, them=%s, peer=%s\n", PROTOCOL_VERSION, nBestHeight, addrMe.ToString().c_str(), addrYou.ToString().c_str(), addr.ToString().c_str());
     PushMessage("version", PROTOCOL_VERSION, nLocalServices, nTime, addrYou, addrMe,
                 nLocalHostNonce, FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>()), nBestHeight);
@@ -678,7 +678,7 @@ int CNetMessage::readHeader(const char *pch, unsigned int nBytes)
 
     // switch state to reading message data
     in_data = true;
-    vRecv.resize(hdr.nMessageSize);
+    // Allocate as payload arrives; a header alone must not reserve 32 MiB.
 
     return nCopy;
 }
@@ -688,6 +688,10 @@ int CNetMessage::readData(const char *pch, unsigned int nBytes)
     unsigned int nRemaining = hdr.nMessageSize - nDataPos;
     unsigned int nCopy = std::min(nRemaining, nBytes);
 
+    if (nCopy == 0)
+        return 0;
+    if (vRecv.size() < nDataPos + nCopy)
+        vRecv.resize(std::min(hdr.nMessageSize, nDataPos + nCopy + 256 * 1024));
     memcpy(&vRecv[nDataPos], pch, nCopy);
     nDataPos += nCopy;
 

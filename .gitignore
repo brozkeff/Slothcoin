@@ -35,6 +35,7 @@ src/qt/test/moc*.cpp
 *.orig
 *.o
 *.patch
+!tools/bdb-cxx11.patch
 .Slothcoin
 *.a
 *.pb.cc
@@ -82,3 +83,12 @@ qa/pull-tester/run-Slothcoind-for-test.sh
 qa/pull-tester/build-tests.sh
 
 !src/leveldb*/Makefile
+
+# Modern build outputs
+/build-*/
+/dist/
+src/security_tests
+src/security_tests_sanitized
+*.d
+src/leveldb/build_config.mk
+src/obj/build5/

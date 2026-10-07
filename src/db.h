@@ -13,6 +13,10 @@
 
 #include <db_cxx.h>
 
+#if DB_VERSION_MAJOR != 4 || DB_VERSION_MINOR != 8
+#error "Build5 requires Berkeley DB 4.8 to preserve legacy wallet compatibility"
+#endif
+
 class CAddress;
 class CAddrMan;
 class CBlockLocator;

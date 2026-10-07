@@ -57,7 +57,8 @@ Value importprivkey(const Array& params, bool fHelp)
     CKey key;
     bool fCompressed;
     CSecret secret = vchSecret.GetSecret(fCompressed);
-    key.SetSecret(secret, fCompressed);
+    if (!key.SetSecret(secret, fCompressed))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key scalar");
     CKeyID vchAddress = key.GetPubKey().GetID();
     {
         LOCK2(cs_main, pwalletMain->cs_wallet);

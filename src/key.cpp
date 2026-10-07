@@ -10,20 +10,20 @@
 using namespace CryptoPP;
 
 Integer CKey::HashPointMessage(const ECPPoint& R,
-    const byte* message, int mlen)
+    const CryptoPP::byte* message, int mlen)
 {
     const int digestsize = 256/8;
-    SHA3 sha(digestsize);
+    // Legacy SHA3 used Keccak padding, not FIPS 202 SHA-3.
+    Keccak_256 sha;
 
-    int len = ec.EncodedPointSize();
-    byte *buffer = new byte[len];
-    ec.EncodePoint(buffer, R, fCompressedPubKey);
-    sha.Update(buffer, len);
-    delete[] buffer;
+    int len = ec.EncodedPointSize(fCompressedPubKey);
+    std::vector<CryptoPP::byte> buffer(len);
+    ec.EncodePoint(buffer.data(), R, fCompressedPubKey);
+    sha.Update(buffer.data(), len);
 
     sha.Update(message, mlen);
 
-    byte digest[digestsize];
+    CryptoPP::byte digest[digestsize];
     sha.Final(digest);
     
     Integer ans;
@@ -61,8 +61,9 @@ void CKey::LoadCurve()
 void CKey::Reset()
 {
     fCompressedPubKey = false;
-    MakeNewKey(fCompressedPubKey);
-    fSet = false;
+    secretKey = Integer::Zero();
+    Q = ECPPoint();
+    secretKeySet = publicKeySet = fSet = false;
 }
 
 CKey::CKey()
@@ -73,9 +74,8 @@ CKey::CKey()
 
 CKey::CKey(const CKey& b)
 {
-    Q = b.Q;
-    secretKey = b.secretKey;
-    fSet = b.fSet;
+    LoadCurve();
+    *this = b;
 }
 
 CKey& CKey::operator=(const CKey& b)
@@ -85,6 +85,9 @@ CKey& CKey::operator=(const CKey& b)
     secretKey = b.secretKey;
 
     fSet = b.fSet;
+    fCompressedPubKey = b.fCompressedPubKey;
+    secretKeySet = b.secretKeySet;
+    publicKeySet = b.publicKeySet;
     return (*this);
 }
 
@@ -105,7 +108,7 @@ bool CKey::IsCompressed() const
 
 bool CKey::GenerateSecretKey()
 {
-    secretKey = Integer(rng, 256) % q;
+    secretKey = Integer(rng, Integer::One(), q - Integer::One());
     secretKeySet = true;
     return true;
 }
@@ -124,10 +127,10 @@ void CKey::MakeNewKey(bool fCompressed)
 {
     
     if (!GenerateSecretKey())
-        throw new key_error("CKey::MakeNewKey : could not generate secret key");
+        throw key_error("CKey::MakeNewKey : could not generate secret key");
     
     if (!GeneratePublicKey())
-        throw new key_error("CKey::MakeNewKey : could not generate public key");
+        throw key_error("CKey::MakeNewKey : could not generate public key");
     
 
     if (fCompressed)
@@ -140,7 +143,12 @@ bool CKey::SetSecret(const CSecret& vchSecret, bool fCompressed)
 {
     if (vchSecret.size() != SCHNORR_SECRET_KEY_SIZE)
         return false;
-    secretKey.Decode(&vchSecret[0], SCHNORR_SECRET_KEY_SIZE);
+    Integer imported;
+    imported.Decode(vchSecret.data(), SCHNORR_SECRET_KEY_SIZE);
+    if (imported < Integer::One() || imported >= q)
+        return false;
+    secretKey = imported;
+    secretKeySet = true;
 
     // generate a new public key
     GeneratePublicKey();
@@ -154,7 +162,7 @@ bool CKey::SetSecret(const CSecret& vchSecret, bool fCompressed)
 CSecret CKey::GetSecret(bool &fCompressed) const
 {
     if (!secretKeySet)
-        throw new key_error("CKey::GetSecret : secret key not set");
+        throw key_error("CKey::GetSecret : secret key not set");
 
     CSecret vchSecret(SCHNORR_SECRET_KEY_SIZE);
     vchSecret.resize(SCHNORR_SECRET_KEY_SIZE);
@@ -166,12 +174,19 @@ CSecret CKey::GetSecret(bool &fCompressed) const
 
 bool CKey::SetPubKey(const CPubKey& vchPubKey)
 {
+    if (!vchPubKey.IsValid())
+        return false;
     ECPPoint publicKey;
     if (!ec.DecodePoint (publicKey, &vchPubKey.vchPubKey[0], vchPubKey.vchPubKey.size()))
         return false;
 
+    if (publicKey.identity || !ec.VerifyPoint(publicKey))
+        return false;
     SetCompressedPubKey(vchPubKey.vchPubKey.size() == 33);
     Q = publicKey;
+    publicKeySet = true;
+    secretKeySet = false;
+    secretKey = Integer::Zero();
     fSet = true;
     return true;
 }
@@ -186,12 +201,14 @@ CPubKey CKey::GetPubKey() const
 
 bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
 {
+    if (!secretKeySet)
+        return false;
     // sign the hash
     Integer k;
     ECPPoint R;
     Integer sigE, sigS;
 
-    k = Integer(rng, 256) % q;
+    k = Integer(rng, Integer::One(), q - Integer::One());
     R = ec.ScalarMultiply(G, k);
 
     // encode hash as byte[]
@@ -212,6 +229,8 @@ bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
 
 bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSig)
 {
+    if (!publicKeySet)
+        return false;
     // decode the vchSig
     Integer sigE, sigS;
     if (vchSig.size() != (SCHNORR_SIG_SIZE * 2))
@@ -219,7 +238,7 @@ bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSig)
 
     // extract bytes
     std::vector<unsigned char> sigEVec(&vchSig[0], &vchSig[SCHNORR_SIG_SIZE]);
-    std::vector<unsigned char> sigSVec(&vchSig[SCHNORR_SIG_SIZE], &vchSig[1 + SCHNORR_SIG_SIZE * 2]);
+    std::vector<unsigned char> sigSVec(&vchSig[SCHNORR_SIG_SIZE], vchSig.data() + vchSig.size());
 
     // vectors -> Integers
     sigE.Decode(&sigEVec[0], SCHNORR_SIG_SIZE);
@@ -238,7 +257,7 @@ bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSig)
 
 bool CKey::IsValid()
 {
-    if (!fSet)
+    if (!fSet || !secretKeySet)
         return false;
 
     bool fCompr;

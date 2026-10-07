@@ -105,8 +105,8 @@ bool CCryptoKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
             if (vchSecret.size() != 32)
                 return false;
             CKey key;
-            key.SetPubKey(vchPubKey);
-            key.SetSecret(vchSecret);
+            if (!key.SetPubKey(vchPubKey) || !key.SetSecret(vchSecret))
+                return false;
             if (key.GetPubKey() == vchPubKey)
                 break;
             return false;
@@ -169,9 +169,9 @@ bool CCryptoKeyStore::GetKey(const CKeyID &address, CKey& keyOut) const
                 return false;
             if (vchSecret.size() != 32)
                 return false;
-            keyOut.SetPubKey(vchPubKey);
-            keyOut.SetSecret(vchSecret);
-            return true;
+            if (!keyOut.SetPubKey(vchPubKey) || !keyOut.SetSecret(vchSecret))
+                return false;
+            return keyOut.GetPubKey() == vchPubKey;
         }
     }
     return false;

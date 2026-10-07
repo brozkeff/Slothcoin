@@ -170,6 +170,8 @@ CAlert CAlert::getAlertByHash(const uint256 &hash)
 
 bool CAlert::ProcessAlert(bool fThread)
 {
+    if (!GetBoolArg("-alerts", false))
+        return false;
     if (!CheckSignature())
         return false;
     if (!IsInEffect())

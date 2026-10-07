@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Slothcoin
+Comment=Experimental Slothcoin wallet
+Exec=Slothcoin-Qt
+Icon=slothcoin
+Terminal=false
+Type=Application
+Categories=Network;Finance;

@@ -86,8 +86,7 @@ public:
             if (mi != mapKeys.end())
             {
                 keyOut.Reset();
-                keyOut.SetSecret((*mi).second.first, (*mi).second.second);
-                return true;
+                return keyOut.SetSecret((*mi).second.first, (*mi).second.second);
             }
         }
         return false;

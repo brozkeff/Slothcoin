@@ -571,8 +571,7 @@ bool CTransaction::CheckTransaction(CValidationState &state) const
             return state.DoS(100, error("CTransaction::CheckTransaction() : txout.nValue negative"));
         if (txout.nValue > MAX_MONEY)
             return state.DoS(100, error("CTransaction::CheckTransaction() : txout.nValue too high"));
-        nValueOut += txout.nValue;
-        if (!MoneyRange(nValueOut))
+        if (!AddMoney(nValueOut, txout.nValue))
             return state.DoS(100, error("CTransaction::CheckTransaction() : txout total out of range"));
     }
 
@@ -1144,6 +1143,12 @@ int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits)
             nSubsidy = 1 * COIN;
         }
 
+    if (!MoneyRange(nFees))
+        throw std::runtime_error("GetBlockValue: fees out of range");
+    // Every allowed output is already <= MAX_MONEY. Saturating the mathematical
+    // subsidy+fees bound preserves that comparison without signed overflow.
+    if (nSubsidy > MAX_MONEY - nFees)
+        return MAX_MONEY;
     return nSubsidy + nFees;
 }
 // Last paying block 1230386 ; Subsidy = 0 starting block 1230387
@@ -1540,8 +1545,10 @@ int64 CTransaction::GetValueIn(CCoinsViewCache& inputs) const
         return 0;
 
     int64 nResult = 0;
-    for (unsigned int i = 0; i < vin.size(); i++)
-        nResult += GetOutputFor(vin[i], inputs).nValue;
+    for (unsigned int i = 0; i < vin.size(); i++) {
+        if (!AddMoney(nResult, GetOutputFor(vin[i], inputs).nValue))
+            throw std::runtime_error("CTransaction::GetValueIn: value out of range");
+    }
 
     return nResult;
 }
@@ -1639,8 +1646,7 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
             }
 
             // Check for negative or overflow input values
-            nValueIn += coins.vout[prevout.n].nValue;
-            if (!MoneyRange(coins.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
+            if (!AddMoney(nValueIn, coins.vout[prevout.n].nValue))
                 return state.DoS(100, error("CheckInputs() : txin values out of range"));
 
         }
@@ -1652,8 +1658,7 @@ bool CTransaction::CheckInputs(CValidationState &state, CCoinsViewCache &inputs,
         int64 nTxFee = nValueIn - GetValueOut();
         if (nTxFee < 0)
             return state.DoS(100, error("CheckInputs() : %s nTxFee < 0", GetHash().ToString().c_str()));
-        nFees += nTxFee;
-        if (!MoneyRange(nFees))
+        if (!AddMoney(nFees, nTxFee))
             return state.DoS(100, error("CheckInputs() : nFees out of range"));
 
         // The first loop above does all the inexpensive checks.
@@ -1897,11 +1902,11 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
                      return state.DoS(100, error("ConnectBlock() : too many sigops"));
             }
 
-            nFees += tx.GetValueIn(view)-tx.GetValueOut();
-
             std::vector<CScriptCheck> vChecks;
             if (!tx.CheckInputs(state, view, fScriptChecks, flags, nScriptCheckThreads ? &vChecks : NULL))
                 return false;
+            if (!AddMoney(nFees, tx.GetValueIn(view)-tx.GetValueOut()))
+                return state.DoS(100, error("ConnectBlock() : fees out of range"));
             control.Add(vChecks);
         }
 
@@ -2509,6 +2514,11 @@ bool ProcessBlock(CValidationState &state, CNode* pfrom, CBlock* pblock, CDiskBl
 
         // Accept orphans as long as there is a node to request its parents from
         if (pfrom) {
+            // Bound memory used by valid proof-of-work blocks with unknown parents.
+            if (mapOrphanBlocks.size() >= 100) {
+                pfrom->PushGetBlocks(pindexBest, pblock->hashPrevBlock);
+                return true;
+            }
             CBlock* pblock2 = new CBlock(*pblock);
             mapOrphanBlocks.insert(make_pair(hash, pblock2));
             mapOrphanBlocksByPrev.insert(make_pair(pblock2->hashPrevBlock, pblock2));
@@ -3651,7 +3661,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     {
         vector<CInv> vInv;
         vRecv >> vInv;
-        if (vInv.size() > MAX_INV_SZ)
+        if (vInv.size() > MAX_INV_SZ || pfrom->vRecvGetData.size() > MAX_INV_SZ - vInv.size())
         {
             pfrom->Misbehaving(20);
             return error("message getdata size() = %"PRIszu"", vInv.size());
@@ -3893,6 +3903,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (strCommand == "alert")
     {
+        if (!GetBoolArg("-alerts", false))
+            return true;
         CAlert alert;
         vRecv >> alert;
 
@@ -4602,6 +4614,8 @@ CBlockTemplate* CreateNewBlock(CReserveKey& reservekey)
             CValidationState state;
             if (!tx.CheckInputs(state, view, true, SCRIPT_VERIFY_P2SH))
                 continue;
+            if (!AddMoney(nFees, nTxFees))
+                continue;
 
             CTxUndo txundo;
             uint256 hash = tx.GetHash();
@@ -4614,7 +4628,6 @@ CBlockTemplate* CreateNewBlock(CReserveKey& reservekey)
             nBlockSize += nTxSize;
             ++nBlockTx;
             nBlockSigOps += nTxSigOps;
-            nFees += nTxFees;
 
             if (fPrintPriority)
             {

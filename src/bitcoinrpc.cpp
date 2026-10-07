@@ -365,11 +365,25 @@ static string HTTPReply(int nStatus, const string& strMsg, bool keepalive)
         strMsg.c_str());
 }
 
+// Bound HTTP lines before allocation; RPC is reachable before authentication.
+static bool ReadHTTPLine(std::basic_istream<char>& stream, string& line)
+{
+    line.clear();
+    char ch;
+    while (stream.get(ch)) {
+        if (ch == '\n') return true;
+        if (line.size() >= 8192) return false;
+        line.push_back(ch);
+    }
+    return false;
+}
+
 bool ReadHTTPRequestLine(std::basic_istream<char>& stream, int &proto,
                          string& http_method, string& http_uri)
 {
     string str;
-    getline(stream, str);
+    if (!ReadHTTPLine(stream, str))
+        return false;
 
     // HTTP request line is space-delimited
     vector<string> vWords;
@@ -403,7 +417,8 @@ bool ReadHTTPRequestLine(std::basic_istream<char>& stream, int &proto,
 int ReadHTTPStatus(std::basic_istream<char>& stream, int &proto)
 {
     string str;
-    getline(stream, str);
+    if (!ReadHTTPLine(stream, str))
+        return HTTP_INTERNAL_SERVER_ERROR;
     vector<string> vWords;
     boost::split(vWords, str, boost::is_any_of(" "));
     if (vWords.size() < 2)
@@ -418,10 +433,16 @@ int ReadHTTPStatus(std::basic_istream<char>& stream, int &proto)
 int ReadHTTPHeaders(std::basic_istream<char>& stream, map<string, string>& mapHeadersRet)
 {
     int nLen = 0;
+    size_t headerBytes = 0;
+    bool haveLength = false;
     while(true)
     {
         string str;
-        std::getline(stream, str);
+        if (!ReadHTTPLine(stream, str))
+            return -1;
+        headerBytes += str.size() + 1;
+        if (headerBytes > 65536)
+            return -1;
         if (str.empty() || str == "\r")
             break;
         string::size_type nColon = str.find(":");
@@ -433,8 +454,17 @@ int ReadHTTPHeaders(std::basic_istream<char>& stream, map<string, string>& mapHe
             string strValue = str.substr(nColon+1);
             boost::trim(strValue);
             mapHeadersRet[strHeader] = strValue;
-            if (strHeader == "content-length")
-                nLen = atoi(strValue.c_str());
+            if (strHeader == "transfer-encoding")
+                return -1; // Chunked encoding is not supported.
+            if (strHeader == "content-length") {
+                if (haveLength || strValue.empty()) return -1;
+                haveLength = true;
+                for (char digit : strValue) {
+                    if (digit < '0' || digit > '9' || nLen > ((int)MAX_SIZE - (digit - '0')) / 10)
+                        return -1;
+                    nLen = nLen * 10 + digit - '0';
+                }
+            }
         }
     }
     return nLen;
@@ -456,7 +486,8 @@ int ReadHTTPMessage(std::basic_istream<char>& stream, map<string,
     if (nLen > 0)
     {
         vector<char> vch(nLen);
-        stream.read(&vch[0], nLen);
+        if (!stream.read(&vch[0], nLen))
+            return HTTP_INTERNAL_SERVER_ERROR;
         strMessageRet = string(vch.begin(), vch.end());
     }
 
@@ -586,7 +617,7 @@ public:
     }
     bool connect(const std::string& server, const std::string& port)
     {
-        ip::tcp::resolver resolver(stream.get_io_service());
+        ip::tcp::resolver resolver(stream.get_executor());
         ip::tcp::resolver::query query(server.c_str(), port.c_str());
         ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         ip::tcp::resolver::iterator end;
@@ -673,7 +704,7 @@ static void RPCListen(boost::shared_ptr< basic_socket_acceptor<Protocol, SocketA
                    const bool fUseSSL)
 {
     // Accept connection
-    AcceptedConnectionImpl<Protocol>* conn = new AcceptedConnectionImpl<Protocol>(acceptor->get_io_service(), context, fUseSSL);
+    AcceptedConnectionImpl<Protocol>* conn = new AcceptedConnectionImpl<Protocol>(static_cast<asio::io_service&>(acceptor->get_executor().context()), context, fUseSSL);
 
     acceptor->async_accept(
             conn->sslStream.lowest_layer(),
@@ -762,13 +793,15 @@ void StartRPCThreads()
 
     assert(rpc_io_service == NULL);
     rpc_io_service = new asio::io_service();
-    rpc_ssl_context = new ssl::context(*rpc_io_service, ssl::context::sslv23);
+    rpc_ssl_context = new ssl::context(ssl::context::tls);
 
     const bool fUseSSL = GetBoolArg("-rpcssl");
 
     if (fUseSSL)
     {
-        rpc_ssl_context->set_options(ssl::context::no_sslv2);
+        rpc_ssl_context->set_options(ssl::context::no_sslv2 | ssl::context::no_sslv3);
+        if (!SSL_CTX_set_min_proto_version(rpc_ssl_context->native_handle(), TLS1_2_VERSION))
+            throw std::runtime_error("Cannot set minimum RPC TLS version");
 
         filesystem::path pathCertFile(GetArg("-rpcsslcertificatechainfile", "server.cert"));
         if (!pathCertFile.is_complete()) pathCertFile = filesystem::path(GetDataDir()) / pathCertFile;
@@ -781,7 +814,7 @@ void StartRPCThreads()
         else printf("ThreadRPCServer ERROR: missing server private key file %s\n", pathPKFile.string().c_str());
 
         string strCiphers = GetArg("-rpcsslciphers", "TLSv1+HIGH:!SSLv2:!aNULL:!eNULL:!AH:!3DES:@STRENGTH");
-        SSL_CTX_set_cipher_list(rpc_ssl_context->impl(), strCiphers.c_str());
+        SSL_CTX_set_cipher_list(rpc_ssl_context->native_handle(), strCiphers.c_str());
     }
 
     // Try a dual IPv6/IPv4 socket, falling back to separate IPv4 and IPv6 sockets
@@ -948,7 +981,10 @@ void ServiceConnection(AcceptedConnection *conn)
             break;
 
         // Read HTTP message headers and body
-        ReadHTTPMessage(conn->stream(), mapHeaders, strRequest, nProto);
+        if (ReadHTTPMessage(conn->stream(), mapHeaders, strRequest, nProto) != HTTP_OK) {
+            conn->stream() << HTTPReply(HTTP_BAD_REQUEST, "", false) << std::flush;
+            break;
+        }
 
         if (strURI != "/") {
             conn->stream() << HTTPReply(HTTP_NOT_FOUND, "", false) << std::flush;
@@ -1061,9 +1097,18 @@ Object CallRPC(const string& strMethod, const Array& params)
     // Connect to localhost
     bool fUseSSL = GetBoolArg("-rpcssl");
     asio::io_service io_service;
-    ssl::context context(io_service, ssl::context::sslv23);
-    context.set_options(ssl::context::no_sslv2);
+    ssl::context context(ssl::context::tls);
+    context.set_options(ssl::context::no_sslv2 | ssl::context::no_sslv3);
+    if (!SSL_CTX_set_min_proto_version(context.native_handle(), TLS1_2_VERSION))
+        throw std::runtime_error("Cannot set minimum RPC TLS version");
     asio::ssl::stream<asio::ip::tcp::socket> sslStream(io_service, context);
+    if (fUseSSL) {
+        const string caFile = GetArg("-rpcsslca", "");
+        if (caFile.empty()) context.set_default_verify_paths();
+        else context.load_verify_file(caFile);
+        sslStream.set_verify_mode(ssl::verify_peer);
+        sslStream.set_verify_callback(ssl::host_name_verification(GetArg("-rpcconnect", "127.0.0.1")));
+    }
     SSLIOStreamDevice<asio::ip::tcp> d(sslStream, fUseSSL);
     iostreams::stream< SSLIOStreamDevice<asio::ip::tcp> > stream(d);
     if (!d.connect(GetArg("-rpcconnect", "127.0.0.1"), GetArg("-rpcport", itostr(GetDefaultRPCPort()))))
@@ -1086,7 +1131,8 @@ Object CallRPC(const string& strMethod, const Array& params)
     // Receive HTTP reply message headers and body
     map<string, string> mapHeaders;
     string strReply;
-    ReadHTTPMessage(stream, mapHeaders, strReply, nProto);
+    if (ReadHTTPMessage(stream, mapHeaders, strReply, nProto) != HTTP_OK)
+        throw runtime_error("invalid HTTP response from RPC server");
 
     if (nStatus == HTTP_UNAUTHORIZED)
         throw runtime_error("incorrect rpcuser or rpcpassword (authorization failed)");

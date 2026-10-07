@@ -15,6 +15,9 @@
 #include <string>
 #include "uint256.h"
 
+/** Maximum inventory message entries and per-peer pending requests. */
+static const unsigned int MAX_INV_SZ = 50000;
+
 extern bool fTestNet;
 static inline unsigned short GetDefaultPort(const bool testnet = fTestNet)
 {

@@ -86,17 +86,6 @@ CMedianFilter<int64> vTimeOffsets(200,0);
 volatile bool fReopenDebugLog = false;
 bool fCachedPath[2] = {false, false};
 
-// Init OpenSSL library multithreading support
-static CCriticalSection** ppmutexOpenSSL;
-void locking_callback(int mode, int i, const char* file, int line)
-{
-    if (mode & CRYPTO_LOCK) {
-        ENTER_CRITICAL_SECTION(*ppmutexOpenSSL[i]);
-    } else {
-        LEAVE_CRITICAL_SECTION(*ppmutexOpenSSL[i]);
-    }
-}
-
 LockedPageManager LockedPageManager::instance;
 
 // Init
@@ -105,27 +94,12 @@ class CInit
 public:
     CInit()
     {
-        // Init OpenSSL library multithreading support
-        ppmutexOpenSSL = (CCriticalSection**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(CCriticalSection*));
-        for (int i = 0; i < CRYPTO_num_locks(); i++)
-            ppmutexOpenSSL[i] = new CCriticalSection();
-        CRYPTO_set_locking_callback(locking_callback);
-
-#ifdef WIN32
-        // Seed random number generator with screen scrape and other hardware sources
-        RAND_screen();
-#endif
-
         // Seed random number generator with performance counter
         RandAddSeed();
     }
     ~CInit()
     {
-        // Shutdown OpenSSL library multithreading support
-        CRYPTO_set_locking_callback(NULL);
-        for (int i = 0; i < CRYPTO_num_locks(); i++)
-            delete ppmutexOpenSSL[i];
-        OPENSSL_free(ppmutexOpenSSL);
+
     }
 }
 instance_of_cinit;
@@ -172,6 +146,12 @@ void RandAddSeedPerfmon()
 #endif
 }
 
+void GetStrongRandBytes(unsigned char* buffer, int size)
+{
+    if (RAND_bytes(buffer, size) != 1)
+        throw std::runtime_error("OpenSSL random number generation failed");
+}
+
 uint64 GetRand(uint64 nMax)
 {
     if (nMax == 0)
@@ -182,7 +162,7 @@ uint64 GetRand(uint64 nMax)
     uint64 nRange = (std::numeric_limits<uint64>::max() / nMax) * nMax;
     uint64 nRand = 0;
     do
-        RAND_bytes((unsigned char*)&nRand, sizeof(nRand));
+        GetStrongRandBytes((unsigned char*)&nRand, sizeof(nRand));
     while (nRand >= nRange);
     return (nRand % nMax);
 }
@@ -195,7 +175,7 @@ int GetRandInt(int nMax)
 uint256 GetRandHash()
 {
     uint256 hash;
-    RAND_bytes((unsigned char*)&hash, sizeof(hash));
+    GetStrongRandBytes((unsigned char*)&hash, sizeof(hash));
     return hash;
 }
 
@@ -1383,11 +1363,11 @@ void seed_insecure_rand(bool fDeterministic)
     } else {
         uint32_t tmp;
         do {
-            RAND_bytes((unsigned char*)&tmp, 4);
+            GetStrongRandBytes((unsigned char*)&tmp, 4);
         } while(tmp == 0 || tmp == 0x9068ffffU);
         insecure_rand_Rz = tmp;
         do {
-            RAND_bytes((unsigned char*)&tmp, 4);
+            GetStrongRandBytes((unsigned char*)&tmp, 4);
         } while(tmp == 0 || tmp == 0x464fffffU);
         insecure_rand_Rw = tmp;
     }

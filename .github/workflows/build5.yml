@@ -1,0 +1,52 @@
+name: Build5 Ubuntu 22.04
+
+on:
+  # Automatic builds disabled: stock Ubuntu 22.04 has no Berkeley DB 4.8.
+  # Builds without its headers/libraries will fail. The source-build workaround
+  # passed locally but must be validated on a clean runner before re-enabling.
+  # push:
+  # pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Install Ubuntu development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential curl patch libssl-dev libcrypto++-dev \
+            libboost-system-dev libboost-filesystem-dev libboost-thread-dev \
+            libboost-program-options-dev libboost-chrono-dev \
+            qtbase5-dev qttools5-dev-tools libqrencode-dev
+      - name: Build daemon and wallet
+        run: bash tools/build-ubuntu22.sh
+      - name: Security regressions
+        run: make -C src -f makefile.unix BDB_INCLUDE_PATH="$GITHUB_WORKSPACE/build-bdb/prefix/include" check-security
+      - name: Address and undefined behavior sanitizers
+        run: make -C src -f makefile.unix BDB_INCLUDE_PATH="$GITHUB_WORKSPACE/build-bdb/prefix/include" check-security-sanitized
+      - name: Offline wallet and RPC smoke test
+        run: python3 tools/smoke-test.py
+      - name: Package release candidate
+        run: bash tools/package-build5.sh
+      - name: Build Debian package
+        run: bash tools/package-deb.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slothcoin-v1.3.1-build5-ubuntu22.04-amd64
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.sha256
+          if-no-files-found: error

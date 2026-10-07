@@ -1,14 +1,17 @@
 TEMPLATE = app
 TARGET = Slothcoin-Qt
 macx:TARGET = "Slothcoin-Qt"
-VERSION = 1.3.1.3
+VERSION = 1.3.1.5
+unix:!macx:isEmpty(BDB_LIB_SUFFIX) {
+    BDB_LIB_SUFFIX = -4.8
+}
 INCLUDEPATH += src src/json src/qt
 QT += core gui network
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
 CONFIG += thread+
-CONFIG += static
+CONFIG += link_pkgconfig
 
 # for boost 1.37, add -mt to the boost libraries
 # use: qmake BOOST_LIB_SUFFIX=-mt
@@ -43,7 +46,7 @@ contains(RELEASE, 1) {
 
     !win32:!macx {
         # Linux: static link and extra security (see: https://wiki.debian.org/Hardening)
-        LIBS += -Wl,-Bstatic -Wl,-z,relro -Wl,-z,now
+        LIBS += -Wl,-z,relro -Wl,-z,now
     }
 }
 # commented QR code for windows and turned miniupnp off
@@ -137,23 +140,9 @@ contains(BITCOIN_NEED_QT_PLUGINS, 1) {
     QTPLUGIN += qcncodecs qjpcodecs qtwcodecs qkrcodecs qtaccessiblewidgets
 }
 
-# CryptoPP
-LIBS += $$PWD/src/cryptopp/libcryptopp.a
-!win32 {
-    gencryptopp.commands = cd $$PWD/src/cryptopp && CC=$$QMAKE_CC CXX=$$QMAKE_CXX $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" static
-} else {
-    # make an educated guess about what the ranlib command is called
-    isEmpty(QMAKE_RANLIB) {
-        QMAKE_RANLIB = $$replace(QMAKE_STRIP, strip, ranlib)
-    }
-    LIBS += -lshlwapi
-    #gencryptopp.commands = cd $$PWD/src/cryptopp && CC=$$QMAKE_CC CXX=$$QMAKE_CXX TARGET_OS=OS_WINDOWS_CROSSCOMPILE $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" static && $$QMAKE_RANLIB $$PWD/src/cryptopp/libcryptopp.a
-}
-gencryptopp.target = $$PWD/src/cryptopp/libcryptopp.a
-gencryptopp.depends = FORCE
-PRE_TARGETDEPS += $$PWD/src/cryptopp/libcryptopp.a
-QMAKE_EXTRA_TARGETS += gencryptopp
-QMAKE_CLEAN += $$PWD/src/cryptopp/libcryptopp.a; cd $$PWD/src/cryptopp ; $(MAKE) clean
+# Use the maintained system Crypto++ library.
+CONFIG += c++11
+LIBS += -lcryptopp
 
 # LevelDB
 INCLUDEPATH += src/leveldb/include src/leveldb/helpers
@@ -465,12 +454,12 @@ macx:QMAKE_CXXFLAGS_THREAD += -pthread
 macx:QMAKE_INFO_PLIST = share/qt/Info.plist
 
 # Set libraries and includes at end, to use platform-defined defaults if not overridden
-INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$QRENCODE_INCLUDE_PATH
-LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,) $$join(CRYPTO_LIB_PATH,,-L,)
+INCLUDEPATH += $$BDB_INCLUDE_PATH $$BOOST_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$QRENCODE_INCLUDE_PATH
+LIBS += $$join(BDB_LIB_PATH,,-L,) $$join(BOOST_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,) $$join(CRYPTO_LIB_PATH,,-L,)
 LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
 # -lgdi32 has to happen after -lcrypto (see  #681)
 win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
-LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
+LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX -lboost_chrono$$BOOST_LIB_SUFFIX
 win32:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 macx:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 

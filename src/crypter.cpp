@@ -5,6 +5,7 @@
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <vector>
+#include <climits>
 #include <string>
 #ifdef WIN32
 #include <windows.h>
@@ -14,13 +15,14 @@
 
 bool CCrypter::SetKeyFromPassphrase(const SecureString& strKeyData, const std::vector<unsigned char>& chSalt, const unsigned int nRounds, const unsigned int nDerivationMethod)
 {
-    if (nRounds < 1 || chSalt.size() != WALLET_CRYPTO_SALT_SIZE)
+    CleanKey();
+    if (nRounds < 1 || nRounds > INT_MAX || strKeyData.size() > INT_MAX || chSalt.size() != WALLET_CRYPTO_SALT_SIZE)
         return false;
 
     int i = 0;
     if (nDerivationMethod == 0)
         i = EVP_BytesToKey(EVP_aes_256_cbc(), EVP_sha512(), &chSalt[0],
-                          (unsigned char *)&strKeyData[0], strKeyData.size(), nRounds, chKey, chIV);
+                          (const unsigned char *)strKeyData.data(), strKeyData.size(), nRounds, chKey, chIV);
 
     if (i != (int)WALLET_CRYPTO_KEY_SIZE)
     {
@@ -35,6 +37,7 @@ bool CCrypter::SetKeyFromPassphrase(const SecureString& strKeyData, const std::v
 
 bool CCrypter::SetKey(const CKeyingMaterial& chNewKey, const std::vector<unsigned char>& chNewIV)
 {
+    CleanKey();
     if (chNewKey.size() != WALLET_CRYPTO_KEY_SIZE || chNewIV.size() != WALLET_CRYPTO_KEY_SIZE)
         return false;
 
@@ -52,19 +55,21 @@ bool CCrypter::Encrypt(const CKeyingMaterial& vchPlaintext, std::vector<unsigned
 
     // max ciphertext len for a n bytes of plaintext is
     // n + AES_BLOCK_SIZE - 1 bytes
+    if (vchPlaintext.size() > INT_MAX - AES_BLOCK_SIZE)
+        return false;
     int nLen = vchPlaintext.size();
     int nCLen = nLen + AES_BLOCK_SIZE, nFLen = 0;
     vchCiphertext = std::vector<unsigned char> (nCLen);
 
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) return false;
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_EncryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, chKey, chIV);
-    if (fOk) fOk = EVP_EncryptUpdate(&ctx, &vchCiphertext[0], &nCLen, &vchPlaintext[0], nLen);
-    if (fOk) fOk = EVP_EncryptFinal_ex(&ctx, (&vchCiphertext[0])+nCLen, &nFLen);
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    if (fOk) fOk = EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, chKey, chIV);
+    if (fOk) fOk = EVP_EncryptUpdate(ctx, &vchCiphertext[0], &nCLen, vchPlaintext.data(), nLen);
+    if (fOk) fOk = EVP_EncryptFinal_ex(ctx, (&vchCiphertext[0])+nCLen, &nFLen);
+    EVP_CIPHER_CTX_free(ctx);
 
     if (!fOk) return false;
 
@@ -74,26 +79,35 @@ bool CCrypter::Encrypt(const CKeyingMaterial& vchPlaintext, std::vector<unsigned
 
 bool CCrypter::Decrypt(const std::vector<unsigned char>& vchCiphertext, CKeyingMaterial& vchPlaintext)
 {
+    vchPlaintext.clear();
     if (!fKeySet)
         return false;
 
     // plaintext will always be equal to or lesser than length of ciphertext
+    if (vchCiphertext.empty() || vchCiphertext.size() > INT_MAX)
+        return false;
     int nLen = vchCiphertext.size();
     int nPLen = nLen, nFLen = 0;
 
     vchPlaintext = CKeyingMaterial(nPLen);
 
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        vchPlaintext.clear();
+        return false;
+    }
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_DecryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, chKey, chIV);
-    if (fOk) fOk = EVP_DecryptUpdate(&ctx, &vchPlaintext[0], &nPLen, &vchCiphertext[0], nLen);
-    if (fOk) fOk = EVP_DecryptFinal_ex(&ctx, (&vchPlaintext[0])+nPLen, &nFLen);
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    if (fOk) fOk = EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, chKey, chIV);
+    if (fOk) fOk = EVP_DecryptUpdate(ctx, &vchPlaintext[0], &nPLen, &vchCiphertext[0], nLen);
+    if (fOk) fOk = EVP_DecryptFinal_ex(ctx, (&vchPlaintext[0])+nPLen, &nFLen);
+    EVP_CIPHER_CTX_free(ctx);
 
-    if (!fOk) return false;
+    if (!fOk) {
+        vchPlaintext.clear();
+        return false;
+    }
 
     vchPlaintext.resize(nPLen + nFLen);
     return true;

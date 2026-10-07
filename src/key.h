@@ -123,7 +123,7 @@ protected:
     CryptoPP::Integer secretKey;
     CryptoPP::ECPPoint Q;
 
-    CryptoPP::Integer HashPointMessage(const CryptoPP::ECPPoint& R, const byte* message, int mlen);
+    CryptoPP::Integer HashPointMessage(const CryptoPP::ECPPoint& R, const CryptoPP::byte* message, int mlen);
 
     bool GeneratePublicKey();
     bool GenerateSecretKey();

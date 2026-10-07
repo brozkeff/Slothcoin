@@ -39,8 +39,6 @@ static const unsigned int MAX_STANDARD_TX_SIZE = 1000000000;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 /** The maximum number of orphan transactions kept in memory */
 static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
-/** The maximum number of entries in an 'inv' protocol message */
-static const unsigned int MAX_INV_SZ = 50000;
 /** The maximum size of a blk?????.dat file (since 0.8) */
 static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 /** The pre-allocation chunk size for blk?????.dat files (since 0.8) */
@@ -52,6 +50,13 @@ static const unsigned int MEMPOOL_HEIGHT = 0x7FFFFFFF;
 /** No amount larger than this (in sherbert) is valid */
 static const int64 MAX_MONEY = 92233720367 * COIN; // 20150821 1108 CET Oldambtster: adjusted to int64 limit
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
+inline bool AddMoney(int64& total, int64 value)
+{
+    if (!MoneyRange(total) || !MoneyRange(value) || total > MAX_MONEY - value)
+        return false;
+    total += value;
+    return true;
+}
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
 static const int COINBASE_MATURITY = 100;
 /** Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp. */
@@ -597,8 +602,7 @@ public:
         int64 nValueOut = 0;
         BOOST_FOREACH(const CTxOut& txout, vout)
         {
-            nValueOut += txout.nValue;
-            if (!MoneyRange(txout.nValue) || !MoneyRange(nValueOut))
+            if (!AddMoney(nValueOut, txout.nValue))
                 throw std::runtime_error("CTransaction::GetValueOut() : value out of range");
         }
         return nValueOut;

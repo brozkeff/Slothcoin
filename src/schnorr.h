@@ -8,11 +8,11 @@
 #include <iostream>
 using namespace std;
 
-#include "cryptopp/osrng.h"      // Random Number Generator
-#include "cryptopp/eccrypto.h"   // Elliptic Curve
-#include "cryptopp/ecp.h"        // F(p) EC
-#include "cryptopp/integer.h"    // Integer 
-#include "cryptopp/sha3.h"		 // SHA3
+#include <crypto++/osrng.h>      // Random Number Generator
+#include <crypto++/eccrypto.h>   // Elliptic Curve
+#include <crypto++/ecp.h>        // F(p) EC
+#include <crypto++/integer.h>    // Integer
+#include <crypto++/keccak.h>		 // SHA3
 
 #define SCHNORR_SECRET_KEY_SIZE 32
 #define SCHNORR_SIG_SIZE 32
